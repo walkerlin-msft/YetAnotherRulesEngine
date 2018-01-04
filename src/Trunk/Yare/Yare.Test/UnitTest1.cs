@@ -24,6 +24,11 @@ namespace Yare.Test
         public string Name { get; set; }
     }
 
+    public class NumbericObj
+    {
+        public decimal DecimalValue { get; set; }
+    }
+
     [TestClass]
     public class UnitTest1
     {
@@ -49,7 +54,7 @@ namespace Yare.Test
             string ruleText;
             Func<Pricing, bool> compiledRule = protobuffedRule.CompileRule<Pricing>(out ruleText);
             Pricing p = new Pricing()
-            { 
+            {
                 Cost = 100001,
                 SomeOtherCost = 5,
                 Name = "Aia"
@@ -96,6 +101,83 @@ namespace Yare.Test
 
             decimal expected = 102.5M;
             Assert.AreEqual(expected, result);
+        }
+
+        [TestMethod]
+        public void SingleRuleItemNumberic()
+        {
+            Assert.IsTrue(testSingleRuleItemNumberic(new Decimal(2.0), "<=", new Decimal(2.01)));
+            Assert.IsTrue(testSingleRuleItemNumberic(new Decimal(2.0), "<", new Decimal(2.01)));
+
+            Assert.IsTrue(testSingleRuleItemNumberic(3, ">", 2));
+            Assert.IsTrue(testSingleRuleItemNumberic(2, ">", 0));
+            Assert.IsTrue(testSingleRuleItemNumberic(2, "<", 3));
+            Assert.IsTrue(testSingleRuleItemNumberic(2, ">=", 2));
+            Assert.IsTrue(testSingleRuleItemNumberic(2, "<=", 2));
+            Assert.IsTrue(testSingleRuleItemNumberic(2, "=", 2));
+
+            Assert.IsTrue(testSingleRuleItemNumberic(0, ">", -1));
+            Assert.IsTrue(testSingleRuleItemNumberic(-1, ">=", -1));
+            Assert.IsTrue(testSingleRuleItemNumberic(-1, "<=", 0));
+            Assert.IsTrue(testSingleRuleItemNumberic(-1, ">=", -2));
+            Assert.IsTrue(testSingleRuleItemNumberic(-1, ">", -2));
+
+            Assert.IsTrue(testSingleRuleItemNumberic(new Decimal(-10), ">", new Decimal(-10.2)));
+            Assert.IsTrue(testSingleRuleItemNumberic(new Decimal(-10), ">=", new Decimal(-10.2)));
+            Assert.IsTrue(testSingleRuleItemNumberic(new Decimal(-10.3), "<", new Decimal(-10.2)));
+        }
+
+        private bool testSingleRuleItemNumberic(decimal left, string op, decimal right)
+        {
+
+            EqualityRule rule;
+            if (right >= 0)
+                rule = new EqualityRule("DecimalValue", getEqualityOperation(op), right.ToString());
+            else
+            {
+                string number = "0-" + Decimal.Negate(right).ToString();
+                Console.WriteLine("right: {0}, numberString: {1}", right, number);
+                rule = new EqualityRule("DecimalValue", getEqualityOperation(op), number);
+            }
+
+
+            RuleBase protobuffedRule = null;
+            using (var mem = new MemoryStream())
+            {
+                Serializer.Serialize(mem, rule);
+                mem.Position = 0;
+                protobuffedRule = Serializer.Deserialize<RuleBase>(mem);
+            }
+
+            string ruleText;
+            Func<NumbericObj, bool> compiledRule = protobuffedRule.CompileRule<NumbericObj>(out ruleText);
+            NumbericObj p = new NumbericObj()
+            {
+                DecimalValue = left
+            };
+
+            return compiledRule(p);
+        }
+
+        private EqualityOperationEnum getEqualityOperation(string op)
+        {
+            switch (op)
+            {
+                case "=":
+                    return EqualityOperationEnum.Equal;
+                case ">":
+                    return EqualityOperationEnum.GreaterThan;
+                case ">=":
+                    return EqualityOperationEnum.GreaterThanOrEqual;
+                case "<":
+                    return EqualityOperationEnum.LessThan;
+                case "<=":
+                    return EqualityOperationEnum.LessThanOrEqual;
+                case "!=":
+                    return EqualityOperationEnum.NotEqual;
+                default:
+                    throw new Exception("Unsupported equality operation!");
+            }
         }
     }
 }
